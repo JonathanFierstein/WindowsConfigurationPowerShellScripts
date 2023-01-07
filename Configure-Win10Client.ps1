@@ -528,6 +528,176 @@ Function DisableUWPSwapFile {
 ##Security Tweaks
 
 
+# Lower UAC level (disabling it completely would break apps)
+Function SetUACLow {
+	Write-Output "Lowering UAC level..."
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ConsentPromptBehaviorAdmin" -Type DWord -Value 0
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "PromptOnSecureDesktop" -Type DWord -Value 0
+}
+
+
+# Disable sharing mapped drives between users
+Function DisableSharingMappedDrives {
+	Write-Output "Disabling sharing mapped drives between users..."
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "EnableLinkedConnections" -ErrorAction SilentlyContinue
+}
+
+
+# Enable implicit administrative shares
+Function EnableAdminShares {
+	Write-Output "Enabling implicit administrative shares..."
+	Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "AutoShareServer" -ErrorAction SilentlyContinue
+	Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "AutoShareWks" -ErrorAction SilentlyContinue
+}
+
+
+# Enable Firewall
+Function EnableFirewall {
+	Write-Output "Enabling Firewall..."
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\StandardProfile" -Name "EnableFirewall" -ErrorAction SilentlyContinue
+}
+
+
+# Show Windows Defender SysTray icon
+Function ShowDefenderTrayIcon {
+	Write-Output "Showing Windows Defender SysTray icon..."
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Systray" -Name "HideSystray" -ErrorAction SilentlyContinue
+	If ([System.Environment]::OSVersion.Version.Build -eq 14393) {
+		Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "WindowsDefender" -Type ExpandString -Value "`"%ProgramFiles%\Windows Defender\MSASCuiL.exe`""
+	} ElseIf ([System.Environment]::OSVersion.Version.Build -ge 15063 -And [System.Environment]::OSVersion.Version.Build -le 17134) {
+		Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SecurityHealth" -Type ExpandString -Value "%ProgramFiles%\Windows Defender\MSASCuiL.exe"
+	} ElseIf ([System.Environment]::OSVersion.Version.Build -ge 17763) {
+		Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SecurityHealth" -Type ExpandString -Value "%windir%\system32\SecurityHealthSystray.exe"
+	}
+}
+
+
+# Enable Windows Defender
+Function EnableDefender {
+	Write-Output "Enabling Windows Defender..."
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -ErrorAction SilentlyContinue
+	If ([System.Environment]::OSVersion.Version.Build -eq 14393) {
+		Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "WindowsDefender" -Type ExpandString -Value "`"%ProgramFiles%\Windows Defender\MSASCuiL.exe`""
+	} ElseIf ([System.Environment]::OSVersion.Version.Build -ge 15063 -And [System.Environment]::OSVersion.Version.Build -le 17134) {
+		Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SecurityHealth" -Type ExpandString -Value "%ProgramFiles%\Windows Defender\MSASCuiL.exe"
+	} ElseIf ([System.Environment]::OSVersion.Version.Build -ge 17763) {
+		Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SecurityHealth" -Type ExpandString -Value "%windir%\system32\SecurityHealthSystray.exe"
+	}
+}
+
+
+# Enable Windows Defender Cloud
+Function EnableDefenderCloud {
+	Write-Output "Enabling Windows Defender Cloud..."
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet" -Name "SpynetReporting" -ErrorAction SilentlyContinue
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet" -Name "SubmitSamplesConsent" -ErrorAction SilentlyContinue
+}
+
+# Enable Controlled Folder Access (Defender Exploit Guard feature) - Applicable since 1709, requires Windows Defender to be enabled
+Function EnableCtrldFolderAccess {
+	Write-Output "Enabling Controlled Folder Access..."
+	Set-MpPreference -EnableControlledFolderAccess Enabled -ErrorAction SilentlyContinue
+}
+
+
+# Disable Core Isolation Memory Integrity - Applicable since 1803
+Function DisableCIMemoryIntegrity {
+	Write-Output "Disabling Core Isolation Memory Integrity..."
+	Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" -Name "Enabled" -ErrorAction SilentlyContinue
+}
+
+
+# Disable Windows Defender Application Guard - Applicable since 1709 Enterprise and 1803 Pro. Not applicable to Server
+Function DisableDefenderAppGuard {
+	Write-Output "Disabling Windows Defender Application Guard..."
+	Disable-WindowsOptionalFeature -online -FeatureName "Windows-Defender-ApplicationGuard" -NoRestart -WarningAction SilentlyContinue | Out-Null
+}
+
+
+# Hide Account Protection warning in Defender about not using a Microsoft account
+Function HideAccountProtectionWarn {
+	Write-Output "Hiding Account Protection warning..."
+	If (!(Test-Path "HKCU:\Software\Microsoft\Windows Security Health\State")) {
+		New-Item -Path "HKCU:\Software\Microsoft\Windows Security Health\State" -Force | Out-Null
+	}
+	Set-ItemProperty "HKCU:\Software\Microsoft\Windows Security Health\State" -Name "AccountProtection_MicrosoftAccount_Disconnected" -Type DWord -Value 1
+}
+
+
+# Disable blocking of downloaded files (i.e. storing zone information - no need to do File\Properties\Unblock)
+Function DisableDownloadBlocking {
+	Write-Output "Disabling blocking of downloaded files..."
+	If (!(Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments")) {
+		New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments" | Out-Null
+	}
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments" -Name "SaveZoneInformation" -Type DWord -Value 1
+}
+
+
+# Disable Windows Script Host (execution of *.vbs scripts and alike)
+Function DisableScriptHost {
+	Write-Output "Disabling Windows Script Host..."
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Script Host\Settings" -Name "Enabled" -Type DWord -Value 0
+}
+
+
+# Enable strong cryptography for old versions of .NET Framework (4.6 and newer have strong crypto enabled by default)
+# https://docs.microsoft.com/en-us/dotnet/framework/network-programming/tls#schusestrongcrypto
+Function EnableDotNetStrongCrypto {
+	Write-output "Enabling .NET strong cryptography..."
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\.NETFramework\v4.0.30319" -Name "SchUseStrongCrypto" -Type DWord -Value 1
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Wow6432Node\Microsoft\.NETFramework\v4.0.30319" -Name "SchUseStrongCrypto" -Type DWord -Value 1
+}
+
+# Enable Meltdown (CVE-2017-5754) compatibility flag - Required for January and February 2018 Windows updates
+# This flag is normally automatically enabled by compatible antivirus software (such as Windows Defender).
+# Use the tweak only if you have confirmed that your AV is compatible but unable to set the flag automatically or if you don't use any AV at all.
+# As of March 2018, the compatibility check has been lifted for security updates.
+# See https://support.microsoft.com/en-us/help/4072699/windows-security-updates-and-antivirus-software for details
+Function EnableMeltdownCompatFlag {
+	Write-Output "Enabling Meltdown (CVE-2017-5754) compatibility flag..."
+	If (!(Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\QualityCompat")) {
+		New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\QualityCompat" | Out-Null
+	}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\QualityCompat" -Name "cadca5fe-87d3-4b96-b7fb-a231484277cc" -Type DWord -Value 0
+}
+
+
+# Enable F8 boot menu options
+Function EnableF8BootMenu {
+	Write-Output "Enabling F8 boot menu options..."
+	bcdedit /set `{current`} BootMenuPolicy Legacy | Out-Null
+}
+
+
+# Enable automatic entering recovery mode during boot
+# This allows the boot process to automatically enter recovery mode when it detects startup errors (default behavior)
+Function EnableBootRecovery {
+	Write-Output "Enabling automatic recovery mode during boot..."
+	bcdedit /deletevalue `{current`} BootStatusPolicy | Out-Null
+}
+
+
+# Enable System Recovery and Factory reset
+Function EnableRecoveryAndReset {
+	Write-Output "Enabling System Recovery and Factory reset..."
+	reagentc /enable 2>&1 | Out-Null
+}
+
+
+# Set Data Execution Prevention (DEP) policy to OptIn - Turn on DEP only for essential 32-bit Windows executables and manually included applications. 64-bit applications have DEP always on.
+Function SetDEPOptIn {
+	Write-Output "Setting Data Execution Prevention (DEP) policy to OptIn..."
+	bcdedit /set `{current`} nx OptIn | Out-Null
+}
+
+
+##Network Tweaks
+
+
+
+
+
 
 
 
@@ -578,8 +748,26 @@ DisableUWPDiagInfo
 DisableUWPFileSystem
 DisableUWPSwapFile
 #Security Tweaks
-
-
+SetUACLow
+DisableSharingMappedDrives
+EnableAdminShares
+EnableFirewall
+ShowDefenderTrayIcon
+EnableDefender
+EnableDefenderCloud
+EnableCtrldFolderAccess
+DisableCIMemoryIntegrity
+DisableDefenderAppGuard
+HideAccountProtectionWarn
+DisableDownloadBlocking
+DisableScriptHost
+EnableDotNetStrongCrypto
+EnableMeltdownCompatFlag
+EnableF8BootMenu
+EnableBootRecovery
+EnableRecoveryAndReset
+SetDEPOptIn
+#Network Tweaks
 
 
 
