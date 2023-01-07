@@ -835,6 +835,233 @@ Function EnableRemoteDesktop {
 
 
 
+# Enable offering of Malicious Software Removal Tool through Windows Update
+Function EnableUpdateMSRT {
+	Write-Output "Enabling Malicious Software Removal Tool offering..."
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\MRT" -Name "DontOfferThroughWUAU" -ErrorAction SilentlyContinue
+}
+
+
+# Enable offering of drivers through Windows Update
+Function EnableUpdateDriver {
+	Write-Output "Enabling driver offering through Windows Update..."
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Name "PreventDeviceMetadataFromNetwork" -ErrorAction SilentlyContinue
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "SearchOrderConfig" -ErrorAction SilentlyContinue
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "ExcludeWUDriversInQualityUpdate" -ErrorAction SilentlyContinue
+}
+
+# Enable receiving updates for other Microsoft products via Windows Update
+Function EnableUpdateMSProducts {
+	Write-Output "Enabling updates for other Microsoft products..."
+	(New-Object -ComObject Microsoft.Update.ServiceManager).AddService2("7971f918-a847-4430-9279-4a52d1efe18d", 7, "") | Out-Null
+}
+
+
+# Disable Windows Update automatic downloads
+Function DisableUpdateAutoDownload {
+	Write-Output "Disabling Windows Update automatic downloads..."
+	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU")) {
+		New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Force | Out-Null
+	}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "AUOptions" -Type DWord -Value 2
+}
+
+
+# Disable automatic restart after Windows Update installation
+# The tweak is slightly experimental, as it registers a dummy debugger for MusNotification.exe
+# which blocks the restart prompt executable from running, thus never schedulling the restart
+Function DisableUpdateRestart {
+	Write-Output "Disabling Windows Update automatic restart..."
+	If (!(Test-Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\MusNotification.exe")) {
+		New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\MusNotification.exe" -Force | Out-Null
+	}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\MusNotification.exe" -Name "Debugger" -Type String -Value "cmd.exe"
+}
+
+
+# Disable nightly wake-up for Automatic Maintenance and Windows Updates
+Function DisableMaintenanceWakeUp {
+	Write-Output "Disabling nightly wake-up for Automatic Maintenance..."
+	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU")) {
+		New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Force | Out-Null
+	}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "AUPowerManagement" -Type DWord -Value 0
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\Maintenance" -Name "WakeUp" -Type DWord -Value 0
+}
+
+
+# Disable Automatic Restart Sign-on - Applicable since 1903
+# See https://docs.microsoft.com/en-us/windows-server/identity/ad-ds/manage/component-updates/winlogon-automatic-restart-sign-on--arso-
+Function DisableAutoRestartSignOn {
+	Write-Output "Disabling Automatic Restart Sign-on..."
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DisableAutomaticRestartSignOn" -Type DWord -Value 1
+}
+
+
+# Disable Shared Experiences - Applicable since 1703. Not applicable to Server
+# This setting can be set also via GPO, however doing so causes reset of Start Menu cache. See https://github.com/Disassembler0/Win10-Initial-Setup-Script/issues/145 for details
+Function DisableSharedExperiences {
+	Write-Output "Disabling Shared Experiences..."
+	If (!(Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\CDP")) {
+		New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\CDP" | Out-Null
+	}
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\CDP" -Name "RomeSdkChannelUserAuthzPolicy" -Type DWord -Value 0
+}
+
+
+# Enable Clipboard History - Applicable since 1809. Not applicable to Server
+Function EnableClipboardHistory {
+	Write-Output "Enabling Clipboard History..."
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Clipboard" -Name "EnableClipboardHistory" -Type DWord -Value 1
+}
+
+
+# Disable Autoplay
+Function DisableAutoplay {
+	Write-Output "Disabling Autoplay..."
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers" -Name "DisableAutoplay" -Type DWord -Value 1
+}
+
+
+# Disable Autorun for all drives
+Function DisableAutorun {
+	Write-Output "Disabling Autorun for all drives..."
+	If (!(Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer")) {
+		New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" | Out-Null
+	}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -Type DWord -Value 255
+}
+
+
+# Disable System Restore for system drive - Not applicable to Server
+# Note: This does not delete already existing restore points as the deletion of restore points is irreversible. In order to do that, run also following command.
+# vssadmin Delete Shadows /For=$env:SYSTEMDRIVE /Quiet
+Function DisableRestorePoints {
+	Write-Output "Disabling System Restore for system drive..."
+	Disable-ComputerRestore -Drive "$env:SYSTEMDRIVE"
+}
+
+
+# Enable Storage Sense - automatic disk cleanup - Applicable since 1703
+Function EnableStorageSense {
+	Write-Output "Enabling Storage Sense..."
+	If (!(Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy")) {
+		New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy" -Force | Out-Null
+	}
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy" -Name "01" -Type DWord -Value 1
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy" -Name "StoragePoliciesNotified" -Type DWord -Value 1
+}
+
+
+# Disable scheduled defragmentation task
+Function DisableDefragmentation {
+	Write-Output "Disabling scheduled defragmentation..."
+	Disable-ScheduledTask -TaskName "Microsoft\Windows\Defrag\ScheduledDefrag" | Out-Null
+}
+
+
+# Stop and disable Superfetch service
+Function DisableSuperfetch {
+	Write-Output "Stopping and disabling Superfetch service..."
+	Stop-Service "SysMain" -WarningAction SilentlyContinue
+	Set-Service "SysMain" -StartupType Disabled
+}
+
+# Start and enable Superfetch service
+Function EnableSuperfetch {
+	Write-Output "Starting and enabling Superfetch service..."
+	Set-Service "SysMain" -StartupType Automatic
+	Start-Service "SysMain" -WarningAction SilentlyContinue
+}
+
+ 
+# Start and enable Windows Search indexing service
+Function EnableIndexing {
+	Write-Output "Starting and enabling Windows Search indexing service..."
+	Set-Service "WSearch" -StartupType Automatic
+	Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\WSearch" -Name "DelayedAutoStart" -Type DWord -Value 1
+	Start-Service "WSearch" -WarningAction SilentlyContinue
+}
+
+
+# Enable Recycle Bin
+Function EnableRecycleBin {
+	Write-Output "Enable Recycle Bin..."
+	Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoRecycleFiles" -ErrorAction SilentlyContinue
+}
+
+# Enable NTFS paths with length over 260 characters
+Function EnableNTFSLongPaths {
+	Write-Output "Enabling NTFS paths with length over 260 characters..."
+	Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Type DWord -Value 1
+}
+
+
+# Disable updating of NTFS last access timestamps
+Function DisableNTFSLastAccess {
+	Write-Output "Disabling updating of NTFS last access timestamps..."
+	# User Managed, Last Access Updates Disabled
+	fsutil behavior set DisableLastAccess 1 | Out-Null
+}
+
+
+# Set BIOS time to local time
+Function SetBIOSTimeLocal {
+	Write-Output "Setting BIOS time to Local time..."
+	Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation" -Name "RealTimeIsUniversal" -ErrorAction SilentlyContinue
+}
+
+
+# Disable Hibernation
+Function DisableHibernation {
+	Write-Output "Disabling Hibernation..."
+	Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Session Manager\Power" -Name "HibernateEnabled" -Type DWord -Value 0
+	If (!(Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings")) {
+		New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings" | Out-Null
+	}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings" -Name "ShowHibernateOption" -Type DWord -Value 0
+	powercfg /HIBERNATE OFF 2>&1 | Out-Null
+}
+
+
+# Disable Sleep start menu and keyboard button
+Function DisableSleepButton {
+	Write-Output "Disabling Sleep start menu and keyboard button..."
+	If (!(Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings")) {
+		New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings" | Out-Null
+	}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings" -Name "ShowSleepOption" -Type DWord -Value 0
+	powercfg /SETACVALUEINDEX SCHEME_CURRENT SUB_BUTTONS SBUTTONACTION 0
+	powercfg /SETDCVALUEINDEX SCHEME_CURRENT SUB_BUTTONS SBUTTONACTION 0
+}
+
+# Enable display and sleep mode timeouts
+Function EnableScreenTimeout {
+	Write-Output "Enabling display but NOT sleep mode timeouts..."
+	powercfg /X monitor-timeout-ac 10
+	powercfg /X monitor-timeout-dc 5
+	powercfg /X standby-timeout-ac 0
+	powercfg /X standby-timeout-dc 0
+}
+
+
+# Enable Fast Startup
+Function EnableFastStartup {
+	Write-Output "Enabling Fast Startup..."
+	Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Type DWord -Value 1
+}
+
+# Disable automatic reboot on crash (BSOD)
+Function DisableAutoRebootOnCrash {
+	Write-Output "Disabling automatic reboot on crash (BSOD)..."
+	Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl" -Name "AutoReboot" -Type DWord -Value 0
+}
+
+
+##UI Tweaks
+
+
+
 
 
 
@@ -924,6 +1151,32 @@ DisableConnectionSharing
 DisableRemoteAssistance
 EnableRemoteDesktop
 #Service Tweaks
-
+EnableUpdateMSRT
+EnableUpdateDriver
+EnableUpdateMSProducts
+DisableUpdateAutoDownload
+DisableUpdateRestart
+DisableMaintenanceWakeUp
+DisableAutoRestartSignOn
+DisableSharedExperiences
+EnableClipboardHistory
+DisableAutoplay
+DisableAutorun
+DisableRestorePoints
+EnableStorageSense
+DisableDefragmentation
+DisableSuperfetch
+EnableSuperfetch
+EnableIndexing
+EnableRecycleBin
+EnableNTFSLongPaths
+DisableNTFSLastAccess
+SetBIOSTimeLocal
+DisableHibernation
+DisableSleepButton
+EnableScreenTimeout
+EnableFastStartup
+DisableAutoRebootOnCrash
+#UI Tweaks
 
 
