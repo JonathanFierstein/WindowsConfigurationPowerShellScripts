@@ -695,6 +695,144 @@ Function SetDEPOptIn {
 ##Network Tweaks
 
 
+# Set unknown networks profile to private (allow file sharing, device discovery, etc.)
+Function SetUnknownNetworksPrivate {
+	Write-Output "Setting unknown networks profile to private..."
+	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\CurrentVersion\NetworkList\Signatures\010103000F0000F0010000000F0000F0C967A3643C3AD745950DA7859209176EF5B87C875FA20DF21951640E807D7C24")) {
+		New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\CurrentVersion\NetworkList\Signatures\010103000F0000F0010000000F0000F0C967A3643C3AD745950DA7859209176EF5B87C875FA20DF21951640E807D7C24" -Force | Out-Null
+	}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\CurrentVersion\NetworkList\Signatures\010103000F0000F0010000000F0000F0C967A3643C3AD745950DA7859209176EF5B87C875FA20DF21951640E807D7C24" -Name "Category" -Type DWord -Value 1
+}
+
+
+# Enable automatic installation of network devices
+Function EnableNetDevicesAutoInst {
+	Write-Output "Enabling automatic installation of network devices..."
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\NcdAutoSetup\Private" -Name "AutoSetup" -ErrorAction SilentlyContinue
+}
+
+
+# Stop and disable Home Groups services - Not applicable since 1803. Not applicable to Server
+Function DisableHomeGroups {
+	Write-Output "Stopping and disabling Home Groups services..."
+	If (Get-Service "HomeGroupListener" -ErrorAction SilentlyContinue) {
+		Stop-Service "HomeGroupListener" -WarningAction SilentlyContinue
+		Set-Service "HomeGroupListener" -StartupType Disabled
+	}
+	If (Get-Service "HomeGroupProvider" -ErrorAction SilentlyContinue) {
+		Stop-Service "HomeGroupProvider" -WarningAction SilentlyContinue
+		Set-Service "HomeGroupProvider" -StartupType Disabled
+	}
+}
+
+
+# Disable obsolete SMB 1.0 protocol - Disabled by default since 1709
+Function DisableSMB1 {
+	Write-Output "Disabling SMB 1.0 protocol..."
+	Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force
+}
+
+
+# Enable SMB Server
+Function EnableSMBServer {
+	Write-Output "Enabling SMB Server..."
+	Set-SmbServerConfiguration -EnableSMB2Protocol $true -Force
+	Enable-NetAdapterBinding -Name "*" -ComponentID "ms_server"
+}
+
+# Disable NetBIOS over TCP/IP on all currently installed network interfaces
+Function DisableNetBIOS {
+	Write-Output "Disabling NetBIOS over TCP/IP..."
+	Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\services\NetBT\Parameters\Interfaces\Tcpip*" -Name "NetbiosOptions" -Type DWord -Value 2
+}
+
+
+# Disable Link-Local Multicast Name Resolution (LLMNR) protocol
+Function DisableLLMNR {
+	Write-Output "Disabling Link-Local Multicast Name Resolution (LLMNR)..."
+	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient")) {
+		New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient" -Force | Out-Null
+	}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient" -Name "EnableMulticast" -Type DWord -Value 0
+}
+
+
+# Disable Local-Link Discovery Protocol (LLDP) for all installed network interfaces
+Function DisableLLDP {
+	Write-Output "Disabling Local-Link Discovery Protocol (LLDP)..."
+	Disable-NetAdapterBinding -Name "*" -ComponentID "ms_lldp"
+}
+
+
+# Enable Local-Link Topology Discovery (LLTD) for all installed network interfaces
+Function EnableLLTD {
+	Write-Output "Enabling Local-Link Topology Discovery (LLTD)..."
+	Enable-NetAdapterBinding -Name "*" -ComponentID "ms_lltdio"
+	Enable-NetAdapterBinding -Name "*" -ComponentID "ms_rspndr"
+}
+
+
+# Enable Client for Microsoft Networks for all installed network interfaces
+Function EnableMSNetClient {
+	Write-Output "Enabling Client for Microsoft Networks..."
+	Enable-NetAdapterBinding -Name "*" -ComponentID "ms_msclient"
+}
+
+
+# Enable Quality of Service (QoS) packet scheduler for all installed network interfaces
+Function EnableQoS {
+	Write-Output "Enabling Quality of Service (QoS) packet scheduler..."
+	Enable-NetAdapterBinding -Name "*" -ComponentID "ms_pacer"
+}
+
+
+# Enable IPv4 stack for all installed network interfaces
+Function EnableIPv4 {
+	Write-Output "Enabling IPv4 stack..."
+	Enable-NetAdapterBinding -Name "*" -ComponentID "ms_tcpip"
+}
+
+
+# Enable IPv6 stack for all installed network interfaces
+Function EnableIPv6 {
+	Write-Output "Enabling IPv6 stack..."
+	Enable-NetAdapterBinding -Name "*" -ComponentID "ms_tcpip6"
+}
+
+
+# Enable Network Connectivity Status Indicator active test
+Function EnableNCSIProbe {
+	Write-Output "Enabling Network Connectivity Status Indicator (NCSI) active test..."
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator" -Name "NoActiveProbe" -ErrorAction SilentlyContinue
+}
+
+
+# Disable Internet Connection Sharing (e.g. mobile hotspot)
+Function DisableConnectionSharing {
+	Write-Output "Disabling Internet Connection Sharing..."
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Network Connections" -Name "NC_ShowSharedAccessUI" -Type DWord -Value 0
+}
+
+
+# Disable Remote Assistance - Not applicable to Server (unless Remote Assistance is explicitly installed)
+Function DisableRemoteAssistance {
+	Write-Output "Disabling Remote Assistance..."
+	Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Remote Assistance" -Name "fAllowToGetHelp" -Type DWord -Value 0
+	Get-WindowsCapability -Online | Where-Object { $_.Name -like "App.Support.QuickAssist*" } | Remove-WindowsCapability -Online | Out-Null
+}
+
+
+# Enable Remote Desktop
+Function EnableRemoteDesktop {
+	Write-Output "Enabling Remote Desktop..."
+	Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Type DWord -Value 0
+	Enable-NetFirewallRule -Name "RemoteDesktop*"
+}
+
+
+##Service Tweaks
+
+
 
 
 
@@ -768,8 +906,24 @@ EnableBootRecovery
 EnableRecoveryAndReset
 SetDEPOptIn
 #Network Tweaks
-
-
+SetUnknownNetworksPrivate
+EnableNetDevicesAutoInst
+DisableHomeGroups
+DisableSMB1
+EnableSMBServer
+DisableNetBIOS
+DisableLLMNR
+DisableLLDP
+EnableLLTD
+EnableMSNetClient
+EnableQoS
+EnableIPv6
+EnableIPv4
+EnableNCSIProbe
+DisableConnectionSharing
+DisableRemoteAssistance
+EnableRemoteDesktop
+#Service Tweaks
 
 
 
