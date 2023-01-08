@@ -2504,14 +2504,8 @@ Function InstallFaxAndScan {
 	Get-WindowsCapability -Online | Where-Object { $_.Name -like "Print.Fax.Scan*" } | Add-WindowsCapability -Online | Out-Null
 }
 
-
-
-
-
-
-
-
-
+######## End Function Declaration Section
+#-----------------------------------------------------------------
 ######## Execution Section
 
 #Privacy
@@ -2714,3 +2708,5 @@ InstallPDFPrinter
 UninstallXPSPrinter
 UninstallFaxAndScan
 RemoveFaxPrinter
+
+######## End Execution Section
